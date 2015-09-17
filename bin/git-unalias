@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# git unalias [-a] [name ...]
+# (bash) unalias [-a] [name ...]
+
+show_help() {
+	echo "Usage: git unalias [-a] [name ...]"
+}
+
+git_config() {
+	if [ -n "$GIT_ALIAS_FILE" ]; then
+		git config --file "$GIT_ALIAS_FILE" "$@"
+	else
+		git config --global "$@"
+	fi
+}
+
+git_alias_unset() {
+	local name="$1"
+	git_config --unset-all "alias.$name"
+}
+git_alias_unset_all() {
+	git_config --remove-section 'alias'
+}
+
+if [ $# -eq 0 ]; then
+	show_help
+	exit 1
+fi
+while [ $# -gt 0 ];do
+	case "$1" in
+		-a)	git_alias_unset_all; break ;;
+		*)	git_alias_unset "$1" ;;
+	esac
+	shift
+done
+

@@ -1,0 +1,89 @@
+#!/bin/bash
+
+#    git alias [-p] [name[=value] ...]
+# (bash) alias [-p] [name[=value] ...]
+
+git_alias__show_help() {
+	echo 'Usage: git alias [-p] [name[=value] ... ]'
+}
+
+# safe quote (like the alias command do)
+# <str> => '<str>' with substitue each ' by '\'' inside <str>
+#safequote() {
+#	local v="'" ;# simple quote
+#	local b='\' ;# simple backslash
+#	echo "$v${1//$v/$v$b$v$v}$v"
+#}
+# found at bash also support : printf -v var %q "$1" ; echo "$var"
+safequote() { printf %q "$1"; }
+
+git_config() {
+	if [ -n "$GIT_ALIAS_FILE" ]; then
+		git config --file "$GIT_ALIAS_FILE" "$@"
+	else
+		git config --global "$@"
+	fi
+}
+
+git_alias_showall() {
+	git_config --get-regexp '^alias\.' \
+	| sed -e 's,^alias\.\([^[:space:]]\+\)[[:space:]]\+\(.*\)$,git alias \1=\2,g' \
+	| (IFS='='
+		while read -r a b; do
+			printf '%s=%s\n' "$a" "$(safequote "$b")"
+		done
+	)
+}
+
+git_alias_exists() {
+	git_config --get "alias.$1" >/dev/null 2>&1
+	local ret=$?
+	# catch the special cases of multiple existing aliases with same name
+	[ $ret -eq 2 ] && return 0 
+	return $ret
+}
+
+git_alias_show() {
+	local name="$1"
+	if ! git_alias_exists "$name"; then
+		echo "git alias: $name: not found"
+		exit 1
+	fi
+	echo "git alias $name=$(safequote "$(git_config --get 'alias.'"$name")")"
+}
+
+git_alias_add() {
+	local name="${1%%=*}"
+	local value="${1#*=}"
+	if [ -z "$value" ]; then
+		echo "ERROR: empty value (for $name)"
+		exit 1
+	fi
+	if git_alias_exists "$name"; then
+		echo "Overwrite alias '$name'"
+		#git_config --unset-all "alias.$name"
+		git_config --replace-all "alias.$name" "$value"
+	else
+		git_config --add "alias.$name" "$value"
+	fi
+}
+
+git_alias() {
+	if [ $# -eq 0 ]; then
+		git_alias_showall
+		return $?
+	fi	
+	while [ $# -gt 0 ];do
+		case "$1" in
+			-p)	git_alias_showall ; break ;;
+			-*)	git_alias__show_help ; return 1 ;;
+			?*=?*)	git_alias_add "$1" ;;
+			?*)	git_alias_show "$1" ;;
+			*)	git_alias__show_help ; return 1
+		esac
+		shift
+	done
+}
+
+git_alias "$@"
+
